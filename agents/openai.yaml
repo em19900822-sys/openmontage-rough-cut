@@ -1,0 +1,7 @@
+interface:
+  display_name: "OpenMontage 口播粗剪"
+  short_description: "快速删除重复重说并合并多个口播原片为第一版粗剪"
+  default_prompt: "Use $openmontage-rough-cut to remove repeated takes from these talking-head clips and export a clean first rough cut."
+
+policy:
+  allow_implicit_invocation: true
