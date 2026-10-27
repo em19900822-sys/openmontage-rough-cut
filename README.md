@@ -7,7 +7,7 @@
 - 多个真人口播片段需要按顺序连接
 - 只删除明确重复和失败录制
 - 第一版不需要字幕、美颜、音乐、辅助画面或转场
-- 使用 OpenMontage、FFmpeg 和 Windows PowerShell 本地完成
+- 使用 FFmpeg + Python（Linux/macOS/Windows 通用）或 Windows PowerShell 本地完成；也覆盖按客户成片时间点的多轮返修
 
 ## 安装
 

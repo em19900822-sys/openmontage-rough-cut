@@ -1,61 +1,60 @@
 ---
 name: openmontage-rough-cut
-description: Use when the user wants a fast first rough cut of several local talking-head clips in OpenMontage by removing repeated takes, failed starts, and obvious restarts, then joining the retained speech without subtitles, beauty, music, overlays, or decorative transitions.
+description: 中文真人口播（talking-head）多片段粗剪与返修。删除重复重说、失败起句、重录和无口播的空停/多余动作，按 EDL 硬切合并成第一版，并按客户意见出 v2、v3…返修版。只要用户给出一批口播原片（MOV/MP4）要“粗剪 / 剪掉重复 / 合成第一版 / 拼起来”，或拿着上一版成片时间点提修改意见（如“0:25 气口往后移”“3:10 这里重复了”“扶眼镜的动作切掉”“结尾切太快”“有点顿”“往后移 5 帧”），都应使用本技能，即使用户没说“粗剪”或“EDL”。不负责字幕、美颜、调色、配乐、包装等精剪。
 ---
 
-# OpenMontage 口播粗剪
+# 口播粗剪与返修
 
-交付一个可直接观看和继续精剪的第一版。只处理明确重复与失败录制，保留所有独有观点和自然表达。
+目标：交付一个可直接观看、可继续精剪的版本。只处理明确的重复、失败录制和无内容的空停/动作，保留所有独有观点和自然表达。**漏删优于误删**——误删一句独有内容比多留一秒停顿代价大得多，客户返修时补删很容易，找回被删的话很难。
 
-## 输入
+## 何时读参考文件
 
-- 一个包含多个本地视频片段的文件夹；按文件名或用户指定顺序连接。
-- 逐字稿可以来自飞书、用户提供的文本或已有本地逐词转录。
-- 用户指定的输出目录。未指定时必须先询问，不能自行选择长期保存位置。
+| 场景 | 读 |
+|---|---|
+| 拿素材、读飞书稿、转录、跨机器搬文件、Windows 渲染踩坑 | `references/pipeline.md` |
+| 客户拿着成片时间提修改意见（第二版及以后） | `references/revision-loop.md`（含用户说法对照表、报告模板） |
+| 想看一次完整实战（四版返修的真实时间点与判断） | `references/case-2026-10-25.md` |
 
-## 执行流程
+## 第一版流程
 
-1. 先读 OpenMontage 项目内的 `AGENTS.md` 和 `AGENT_GUIDE.md`。已有同主题项目、转录、EDL 或 checkpoint 时继续使用，不重新转录。
-2. 探测全部源视频，确认可读、音轨存在、显示方向、分辨率、帧率和时长。保留原始素材，不移动、不覆盖。
-3. 有飞书逐字稿链接时，按 `lark-shared`、`lark-wiki`、`lark-doc` 读取正文；只读操作直接执行。
-4. 优先复用逐词时间戳。没有时间戳时，使用已配置的本地或免费额度转录路线；任何新增付费调用必须先取得用户明确同意。
-5. 建立 EDL。每个保留片段至少包含：`order`、`input_path`、`start_seconds`、`end_seconds`、`reason`。
-6. 使用 [scripts/render_rough_cut.ps1](scripts/render_rough_cut.ps1) 一次完成精确裁切与硬切合并。默认先尝试 Intel QSV，失败后自动改用 `libx264 veryfast`。
-7. 把通过检查的成片复制到用户指定目录。工程 Master 与交付副本计算 SHA256，必须一致。
+1. **确认输入**：素材文件夹与拼接顺序（默认按文件名）、逐字稿来源、输出目录。没给输出目录就先问，不要自己选长期保存位置。原片只读，绝不移动或覆盖。
+2. **探测素材**：ffprobe 每个片段的时长、分辨率、帧率、方向、是否有音轨。
+3. **拿逐字稿**：飞书/用户文本只作对齐参考；剪辑依据是真实口播的逐词时间戳。
+4. **转录**：已有逐词时间戳就复用；否则本地 faster-whisper（`scripts/transcribe_words.py`）。任何付费转录先征得同意。
+5. **建 EDL**（见下方删除规则 + 第一版自检清单）。
+6. **渲染**：先 `--plan-only` 校验，再正式渲染（见“渲染”）。
+7. **验收并报告**（见“完成标准”与 `references/revision-loop.md` 的报告模板）。
 
-## 删除判断
+## 删除规则
 
 删除：
-
-- 同一句连续录了多遍，保留最后一次完整、清楚的版本。
-- 说到一半停住，随后从句首完整重说。
-- 接错上一句后重新开始的失败起句。
+- 同一句连续录了多遍 → 保留最后一次完整、清楚的版本。
+- 说到一半停住，随后从句首重说；接错上一句后重新开始。
 - 同一比喻、案例或结论原样回说。
-- 明显的开拍倒数、试音和无内容口令。
+- 开拍倒数、试音、片头报段号（如“第二段”“10.25 第三段”）等无内容口令。
+- 无口播的长空停或多余动作（扶眼镜、抿嘴、按屏幕、举手不说话等），约超过 1 秒且前后没有内容。
 
 保留：
-
 - 新观点、条件、例子、边界和行动建议。
-- 不影响理解的自然语气词和短停顿。
-- 只有相似但承担不同衔接作用的句子。
-- 无法确认是否重复的内容。漏删优于误删。
+- 不影响理解的语气词和自然短停顿（约 1 秒以内的换气不要动）。
+- 只是相似、但承担不同衔接作用的句子；规范稿里两句都有的，说明不是重复。
+- 无法确认是否重复的内容。
 
-不要为了逐字匹配规范稿而删掉真实口播中的独有信息。不要把转录识别错误当成口误直接删除。
+不要为了贴合规范稿删真实口播的独有信息；不要把 ASR 错字（“试纸”识别成“式子”“狮子”之类）当口误删。
 
-## 粗剪边界
+## 第一版自检清单
 
-除非用户另行要求，本 Skill 必须保持：
+这些问题客户往往在第二、三轮才指出，第一版就顺手处理，能省掉一整轮返修。但每一项都服从“漏删优于误删”：
 
-- 无字幕
-- 无美颜与调色
-- 无音乐、音效和辅助画面
-- 无变速
-- 无淡入淡出或花式转场，只使用硬切
-- 不激进压缩停顿
+- **切点落在静音里**：出点在字尾之后约 0.15–0.2 秒，入点在开口前约 0.15–0.2 秒。贴着字切会显得“切太紧/有点顿”。
+- **入点不要带进上一遍的残音**：删掉重复的前一遍后，入点要越过上一遍的尾字，否则会听到半个字再空停。
+- **开口前的静止段、句中 >1 秒的空停、无声动作**：用音量曲线 + 抽帧确认后删除。
+- **片尾留尾音**：最后一段出点在末字之后再留约 0.2–0.5 秒，不要卡在字尾。
+- **VAD 盲区**：转录开了 VAD 时，对时间戳有大空洞或单字拉得很长（如一个字占 3 秒）的区间，关掉 VAD 重转一次，这里常藏着重复句。
 
-这只是第一版粗剪，不执行完整成片的 Style Lock、字幕对齐、美颜或发布流程。
+精确定位方法（音量曲线 dB 判读、抽帧拼图）见 `references/revision-loop.md` 的“精修技术”。
 
-## EDL 示例
+## EDL 格式
 
 ```json
 {
@@ -72,28 +71,36 @@ description: Use when the user wants a fast first rough cut of several local tal
 }
 ```
 
-先检查计划：
+- `input_path` 必须是**渲染所在机器**上的路径（素材在用户 Windows 电脑就写 Windows 路径）。
+- 每段都写 `reason`；返修版在原 reason 后追加 `｜v2: …`，说明改了什么、挪了多少秒。
+- 返修版可加 `revision`、`based_on` 字段；`version` 保持 `rough-cut-v1`（渲染脚本不校验它）。
+- 每一版另存 `rough_cut_v{n}_edl.json`，不覆盖上一版。
 
-```powershell
-& "$SKILL_DIR\scripts\render_rough_cut.ps1" `
-  -EdlPath "D:\project\artifacts\rough_cut_v1_edl.json" `
-  -OutputPath "D:\output\粗剪第一版.mp4" `
-  -PlanOnly
-```
+## 渲染
 
-正式渲染：
+| 环境 | 用法 |
+|---|---|
+| Linux / macOS / Windows 上有 Python | `python scripts/render_rough_cut.py --edl <edl> --output <mp4> --encoder libx264 [--plan-only]` |
+| Windows 仅有 PowerShell | `scripts/render_rough_cut.ps1 -EdlPath <edl> -OutputPath <mp4> [-PlanOnly]` |
 
-```powershell
-& "$SKILL_DIR\scripts\render_rough_cut.ps1" `
-  -EdlPath "D:\project\artifacts\rough_cut_v1_edl.json" `
-  -OutputPath "D:\output\粗剪第一版.mp4"
-```
+- 优先用 Python 版：Windows PowerShell 5 的 `ConvertFrom-Json` 读含中文 reason 的 UTF-8 EDL 会解析失败。
+- 没有 Intel QSV 时直接 `--encoder libx264`，省掉一次失败重试。`auto` 会先试 `h264_qsv` 再退回 `libx264`。
+- 素材大且在用户电脑上时，就在用户电脑上渲染，只把 EDL 和脚本拷过去。
+- 渲染前确认目标文件不存在；每版用新文件名（`粗剪第一版.mp4`、`粗剪第二版.mp4`…），旧版保留供对比。
+- 脚本只做硬切：trim + concat，无字幕、美颜、音乐、转场、变速，也不激进压缩停顿。
+
+## 辅助脚本
+
+- `scripts/transcribe_words.py`：faster-whisper 逐词转录；`--start/--end --no-vad` 可只重转可疑窗口。
+- `scripts/map_timeline.py`：把成片时间点换算回 EDL 段与源片时间，并列出 ±N 秒内的切点。返修第一步就跑它。
+- `scripts/probe_window.py`：源片窗口的 50ms 音量曲线与静音区间，加 `--sheet` 输出带时间标签的抽帧拼图。
+
+用法详见 `HOWTO.md`。
 
 ## 完成标准
 
-- 输出含一个视频流和一个音频流，可完整解码。
-- 输出时长与 EDL 保留时长误差不超过 1 秒。
-- 顺序与 EDL 一致，重复内容已删除，独有观点无缺失。
-- 没有字幕、美颜、音乐、辅助画面或额外转场。
-- 源文件保持原样。
-- 交付文件真实存在于用户指定路径，并报告时长、规格和未确认事项。
+- 输出有一路视频流、一路音频流，可完整解码。
+- 实际时长与 EDL 合计误差 ≤1 秒（ffprobe 核对）。
+- 顺序与 EDL 一致，重复已删，独有观点无缺失。
+- 无字幕、美颜、音乐、辅助画面或转场；源文件未改动；旧版成片未被覆盖。
+- 报告写清：成片路径、时长、规格、删了什么、新版中的复查时间点、未确认项。
